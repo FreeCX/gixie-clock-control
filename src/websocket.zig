@@ -10,34 +10,42 @@ pub const Opcode = enum(u4) {
     Continuation = 0,
     Text = 1,
     Binary = 2,
-    Reserved1 = 3,
-    Reserved2 = 4,
-    Reserved3 = 5,
-    Reserved4 = 6,
-    Reserved5 = 7,
+    _Reserved1 = 3,
+    _Reserved2 = 4,
+    _Reserved3 = 5,
+    _Reserved4 = 6,
+    _Reserved5 = 7,
     Close = 8,
     Ping = 9,
     Pong = 10,
-    Reserved6 = 11,
-    Reserved7 = 12,
-    Reserved8 = 13,
-    Reserved9 = 14,
-    Reserved10 = 15,
+    _Reserved6 = 11,
+    _Reserved7 = 12,
+    _Reserved8 = 13,
+    _Reserved9 = 14,
+    _Reserved10 = 15,
 };
 // из-за порядка укладки пришлось переставить поля
 pub const Frame = packed struct {
+    // bits 4-7
     opcode: Opcode,
+    // bit 3
     rsv3: bool = false,
+    // bit 2
     rsv2: bool = false,
+    // bit 1
     rsv1: bool = false,
+    // bit 0
     fin: bool = true,
+    // bit 9-15
     payload_len: u7 = 0,
+    // bit 8
     mask: bool = false,
 };
 
 const http_upgrade_size = 160;
 const buffer_size = 128;
 
+// low budget websocket
 pub const Websocket = struct {
     stream: net.Stream,
     allocator: std.mem.Allocator,
@@ -88,10 +96,9 @@ pub const Websocket = struct {
         log.debug("send http upgrade:\n{s}", .{http_upgrade});
         try self.stream.writeAll(http_upgrade);
 
+        // http response
         const buffer = try self.allocator.alloc(u8, buffer_size);
         defer self.allocator.free(buffer);
-
-        // http response
         var reader = self.stream.reader();
         while (true) {
             const line = try reader.readUntilDelimiter(buffer, '\n');
@@ -107,7 +114,7 @@ pub const Websocket = struct {
             try self.sendFrame(Frame{ .opcode = .Pong });
         }
 
-        // text
+        // text: Connected
         const second_frame = try self.readFrame();
         if (second_frame.payload_len > 0) {
             const payload = try self.allocRead(second_frame.payload_len);
