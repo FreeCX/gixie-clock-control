@@ -4,19 +4,23 @@ const net = std.net;
 const json = std.json;
 const Websocket = @import("websocket.zig").Websocket;
 
-pub const Type = enum(u2) {
+const Type = enum(u2) {
     Get = 0,
     Set = 1,
 };
 
-pub const Command = enum(u8) {
+const Command = enum(u8) {
     Brightness = 14,
 };
 
-pub const Request = struct {
+const Context = struct {
+    value: i32,
+};
+
+const Request = struct {
     cmdType: Type,
     cmdNum: Command,
-    cmdCtx: ?u8 = null,
+    cmdCtx: ?Context = null,
 
     // TOOD: пока делаю так, т.к. не понял как серилизовывать значения, а не строки
     pub fn jsonStringify(self: *const Request, jws: anytype) !void {
@@ -27,19 +31,22 @@ pub const Request = struct {
         try jws.print("{d}", .{@intFromEnum(self.cmdNum)});
         if (self.cmdCtx != null) {
             try jws.objectField("cmdCtx");
-            try jws.print("{d}", .{self.cmdCtx.?});
+            try jws.beginObject();
+            try jws.objectField("value");
+            try jws.print("{d}", .{self.cmdCtx.?.value});
+            try jws.endObject();
         }
         try jws.endObject();
     }
 };
 
-pub const Response = struct {
+const Response = struct {
     // TODO: это обычный код из HTTP
     resCode: u16,
     cmdType: Type,
     cmdNum: Command,
     // TODO: тут не понятно в каком диапазоне значения
-    data: i32,
+    data: ?i32 = null,
 };
 
 pub const Api = struct {
@@ -57,8 +64,11 @@ pub const Api = struct {
         return Self{ .stream = stream, .allocator = allocator };
     }
 
-    fn request(self: Self, cmd_type: Type, cmd: Command, value: ?u8) !void {
-        const request_data = Request{ .cmdType = cmd_type, .cmdNum = cmd, .cmdCtx = value };
+    fn request(self: Self, cmd_type: Type, cmd: Command, value: ?i32) !void {
+        var request_data = Request{ .cmdType = cmd_type, .cmdNum = cmd, .cmdCtx = null };
+        if (value != null) {
+            request_data.cmdCtx = Context {.value = value.?};
+        }
         const request_bytes = try json.stringifyAlloc(self.allocator, request_data, .{});
         defer self.allocator.free(request_bytes);
         log.debug("request: {any}", .{ request_data });
@@ -84,11 +94,11 @@ pub const Api = struct {
         const response_data = try self.response();
         defer response_data.deinit();
 
-        return response_data.value.data;
+        return response_data.value.data.?;
     }
 
     // TODO: нормальный API
-    pub fn set(self: Api, cmd: Command, value: u8) !void {
+    pub fn set(self: Api, cmd: Command, value: i32) !void {
         log.debug("-- write --", .{});
 
         // send command
