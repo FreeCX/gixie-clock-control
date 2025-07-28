@@ -1,5 +1,4 @@
 const std = @import("std");
-const net = std.net;
 const log = std.log;
 const mem = std.mem;
 const io = std.io;
@@ -28,8 +27,9 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const stdout = io.getStdOut().writer();
 
+    // TODO: command line arguments / config
     const config = .{
-        .address = "192.168.88.97",
+        .host = "192.168.88.97",
         .port = 81,
         .latitude = 48.7194,
         .longitude = 44.5018,
@@ -59,8 +59,7 @@ pub fn main() !void {
         return;
     }
 
-    const address = try net.Address.parseIp4(config.address, config.port);
-    var gixie = try api.Api.init(address, allocator);
+    var gixie = try api.Api.init(config.host, config.port, allocator);
     defer gixie.deinit();
 
     if (isGet) {

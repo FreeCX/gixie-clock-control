@@ -55,11 +55,12 @@ pub const Api = struct {
 
     const Self = @This();
 
-    pub fn init(address: net.Address, allocator: std.mem.Allocator) !Self {
+    pub fn init(host: []const u8, port: u16, allocator: std.mem.Allocator) !Self {
+        const address = try net.Address.parseIp4(host, port);
         const stream = try Websocket.init(address, allocator);
 
         log.debug("-- handshake --", .{});
-        try stream.handshake();
+        try stream.handshake(host, port);
 
         return Self{ .stream = stream, .allocator = allocator };
     }

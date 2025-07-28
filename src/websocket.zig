@@ -1,6 +1,7 @@
 // https://datatracker.ietf.org/doc/html/rfc6455
 
 const std = @import("std");
+const fmt = std.fmt;
 const log = std.log;
 const mem = std.mem;
 const net = std.net;
@@ -34,6 +35,7 @@ pub const Frame = packed struct {
     mask: bool = false,
 };
 
+const http_upgrade_size = 160;
 const buffer_size = 128;
 
 pub const Websocket = struct {
@@ -69,15 +71,19 @@ pub const Websocket = struct {
         _ = try self.stream.write(&frame_bytes);
     }
 
-    pub fn handshake(self: Self) !void {
-        const http_upgrade =
+    pub fn handshake(self: Self, host: []const u8, port: u16) !void {
+        const format =
             "GET / HTTP/1.1\r\n" ++
-            "Host: 192.168.88.97:81\r\n" ++
+            "Host: {s}:{d}\r\n" ++
             "Connection: Upgrade\r\n" ++
             "Upgrade: websocket\r\n" ++
             "Sec-WebSocket-Version: 13\r\n" ++
-            "Sec-WebSocket-Key: w73/mpTYTn75oPFTajvs4Q==\r\n" ++
+            // we don't care
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" ++
             "\r\n";
+        const tmp = try self.allocator.alloc(u8, http_upgrade_size);
+        defer self.allocator.free(tmp);
+        const http_upgrade = try fmt.bufPrint(tmp, format, .{host, port});
 
         log.debug("send http upgrade:\n{s}", .{http_upgrade});
         try self.stream.writeAll(http_upgrade);
