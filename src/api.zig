@@ -7,10 +7,18 @@ const Websocket = @import("websocket.zig").Websocket;
 const Type = enum(u2) {
     Get = 0,
     Set = 1,
+
+    pub fn jsonStringify(self: *const Type, jws: anytype) !void {
+        try jws.print("{d}", .{@intFromEnum(self.*)});
+    }
 };
 
 const Command = enum(u8) {
     Brightness = 14,
+
+    pub fn jsonStringify(self: *const Command, jws: anytype) !void {
+        try jws.print("{d}", .{@intFromEnum(self.*)});
+    }
 };
 
 const Context = struct {
@@ -21,23 +29,6 @@ const Request = struct {
     cmdType: Type,
     cmdNum: Command,
     cmdCtx: ?Context = null,
-
-    // TOOD: пока делаю так, т.к. не понял как серилизовывать значения, а не строки
-    pub fn jsonStringify(self: *const Request, jws: anytype) !void {
-        try jws.beginObject();
-        try jws.objectField("cmdType");
-        try jws.print("{d}", .{@intFromEnum(self.cmdType)});
-        try jws.objectField("cmdNum");
-        try jws.print("{d}", .{@intFromEnum(self.cmdNum)});
-        if (self.cmdCtx != null) {
-            try jws.objectField("cmdCtx");
-            try jws.beginObject();
-            try jws.objectField("value");
-            try jws.print("{d}", .{self.cmdCtx.?.value});
-            try jws.endObject();
-        }
-        try jws.endObject();
-    }
 };
 
 const Response = struct {
@@ -70,7 +61,8 @@ pub const Api = struct {
         if (value != null) {
             request_data.cmdCtx = Context {.value = value.?};
         }
-        const request_bytes = try json.stringifyAlloc(self.allocator, request_data, .{});
+
+        const request_bytes = try json.stringifyAlloc(self.allocator, request_data, .{ .emit_null_optional_fields = false });
         defer self.allocator.free(request_bytes);
         log.debug("request: {any}", .{ request_data });
         try self.stream.writeText(request_bytes);
