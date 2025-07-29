@@ -91,7 +91,7 @@ pub const Websocket = struct {
             "\r\n";
         const tmp = try self.allocator.alloc(u8, http_upgrade_size);
         defer self.allocator.free(tmp);
-        const http_upgrade = try fmt.bufPrint(tmp, format, .{host, port});
+        const http_upgrade = try fmt.bufPrint(tmp, format, .{ host, port });
 
         log.debug("send http upgrade:\n{s}", .{http_upgrade});
         try self.stream.writeAll(http_upgrade);

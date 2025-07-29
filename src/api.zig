@@ -59,20 +59,23 @@ pub const Api = struct {
     fn request(self: Self, cmd_type: Type, cmd: Command, value: ?i32) !void {
         var request_data = Request{ .cmdType = cmd_type, .cmdNum = cmd, .cmdCtx = null };
         if (value != null) {
-            request_data.cmdCtx = Context {.value = value.?};
+            request_data.cmdCtx = Context{ .value = value.? };
         }
 
         const request_bytes = try json.stringifyAlloc(self.allocator, request_data, .{ .emit_null_optional_fields = false });
         defer self.allocator.free(request_bytes);
-        log.debug("request: {any}", .{ request_data });
+        log.debug("request: {any}", .{request_data});
+
         try self.stream.writeText(request_bytes);
     }
 
     fn response(self: Self) !json.Parsed(Response) {
         const response_bytes = try self.stream.readText();
         defer self.allocator.free(response_bytes);
+
         const response_data = try json.parseFromSlice(Response, self.allocator, response_bytes, .{});
-        log.debug("response: {any}", .{ response_data.value });
+        log.debug("response: {any}", .{response_data.value});
+
         return response_data;
     }
 
