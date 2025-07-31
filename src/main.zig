@@ -5,6 +5,7 @@ const io = std.io;
 const process = std.process;
 const suninfo = @import("suninfo.zig");
 const api = @import("api.zig");
+const cfg = @import("config.zig");
 
 fn printUsage(stdout: io.AnyWriter) !void {
     const usage =
@@ -26,14 +27,14 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
     const stdout = io.getStdOut().writer();
+    const stderr = io.getStdErr().writer();
 
-    // TODO: command line arguments / config
-    const config = .{
-        .host = "192.168.88.97",
-        .port = 81,
-        .latitude = 48.7194,
-        .longitude = 44.5018,
+    const parsed = cfg.parseConfigAlloc("config.json", allocator) catch |err| {
+        try stderr.print("Problem with config loading: {}", .{err});
+        return;
     };
+    defer parsed.deinit();
+    const config = parsed.value;
 
     const args = try process.argsAlloc(allocator);
     defer process.argsFree(allocator, args);
@@ -53,13 +54,13 @@ pub fn main() !void {
     }
 
     if (isSuninfo) {
-        const result = try suninfo.calculate(config.latitude, config.longitude, 0);
+        const result = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation);
         try stdout.print("sunrise: {d:02}:{d:02}\n", .{ result.sunrise.hour, result.sunrise.minute });
         try stdout.print(" sunset: {d:02}:{d:02}\n", .{ result.sunset.hour, result.sunset.minute });
         return;
     }
 
-    var gixie = try api.Api.init(config.host, config.port, allocator);
+    var gixie = try api.Api.init(config.clock.host, config.clock.port, allocator);
     defer gixie.deinit();
 
     if (isGet) {
