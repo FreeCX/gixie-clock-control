@@ -45,7 +45,6 @@ fn updateCrontab(app: []u8, config: cfg.Config, allocator: std.mem.Allocator) !v
 }
 
 fn changeBrightness(config: cfg.Config, allocator: std.mem.Allocator) !void {
-
     var gixie = try api.Api.init(config.clock.host, config.clock.port, allocator);
     defer gixie.deinit();
 
@@ -56,7 +55,7 @@ fn changeBrightness(config: cfg.Config, allocator: std.mem.Allocator) !void {
     const stdout = io.getStdOut().writer();
     try stdout.print("brightness: {d} -> {d}\n", .{ from_value, to_value });
 
-    var iter = TransitionIterator {.start = from_value, .stop = to_value, .step = config.control.step * sign} ;
+    var iter = TransitionIterator{ .start = from_value, .stop = to_value, .step = config.control.step * sign };
     while (iter.next()) |value| {
         try gixie.set(.Brightness, value);
     }

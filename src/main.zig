@@ -26,11 +26,12 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
+
     const stdout = io.getStdOut().writer();
     const stderr = io.getStdErr().writer();
 
     const parsed = cfg.parseConfigAlloc("config.json", allocator) catch |err| {
-        try stderr.print("Problem with config loading: {}", .{err});
+        try stderr.print("Problem with config loading: {}\n", .{err});
         return;
     };
     defer parsed.deinit();

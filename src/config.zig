@@ -1,6 +1,7 @@
 const std = @import("std");
 const json = std.json;
 
+// zig fmt: off
 pub const Config = struct {
     clock: struct {
         host: []u8,
@@ -18,6 +19,7 @@ pub const Config = struct {
         step: i32,
     }
 };
+// zig fmt: on
 
 const max_file_size = 1024 * 1024;
 
