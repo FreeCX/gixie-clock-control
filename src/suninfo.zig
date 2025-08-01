@@ -23,7 +23,7 @@ fn reverseJulian(timestamp: f64) f64 {
 }
 
 fn dateFromTimestamp(v: f64) Time {
-    const timestamp: c_long = @intFromFloat(v);
+    const timestamp: c_longlong = @intFromFloat(v);
     const dt = time.localtime(&timestamp);
     return Time{ .hour = @intCast(dt.*.tm_hour), .minute = @intCast(dt.*.tm_min) };
 }
