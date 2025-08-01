@@ -10,6 +10,7 @@ pub const Config = struct {
         latitude: f64,
         longitude: f64,
         elevation: f64,
+        timezone: i8,
     },
     control: struct {
         min: i32,

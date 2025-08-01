@@ -34,7 +34,7 @@ fn updateCrontab(app: []u8, config: cfg.Config, allocator: std.mem.Allocator) !v
     const current_crontab = try file.readToEndAlloc(allocator, max_file_size);
     defer allocator.free(current_crontab);
 
-    const info = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation);
+    const info = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation, config.position.timezone);
 
     const stdout = io.getStdOut().writer();
     try stdout.print("{s}\n", .{current_crontab});
@@ -62,9 +62,7 @@ fn changeBrightness(config: cfg.Config, allocator: std.mem.Allocator) !void {
     }
 }
 
-// TODO:
-//  - args[0] -> full app path
-//  - datetime with timezone
+// TODO: args[0] -> full app path
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();

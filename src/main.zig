@@ -54,7 +54,7 @@ pub fn main() !void {
     }
 
     if (isSuninfo) {
-        const result = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation);
+        const result = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation, config.position.timezone);
         try stdout.print("sunrise: {d:02}:{d:02}\n", .{ result.sunrise.hour, result.sunrise.minute });
         try stdout.print(" sunset: {d:02}:{d:02}\n", .{ result.sunset.hour, result.sunset.minute });
         return;

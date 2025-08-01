@@ -1,7 +1,8 @@
 const std = @import("std");
 const log = std.log;
 const math = std.math;
-const time = @cImport({
+const time = std.time;
+const cTime = @cImport({
     @cInclude("time.h");
 });
 
@@ -13,7 +14,7 @@ const unix_const = 2440587.5; // 01-01-1970, 00:00:00
 const seconds_in_day = 60.0 * 60.0 * 24.0;
 
 fn nowJulianDate() f64 {
-    const now: f64 = @floatFromInt(time.time(null));
+    const now: f64 = @floatFromInt(time.timestamp());
     log.debug("Now = {d:.0}", .{now});
     return now / seconds_in_day + unix_const;
 }
@@ -22,14 +23,15 @@ fn reverseJulian(timestamp: f64) f64 {
     return (timestamp - unix_const) * seconds_in_day;
 }
 
-fn dateFromTimestamp(v: f64) Time {
+fn dateFromTimestamp(v: f64, timezone: i8) Time {
     const timestamp: c_longlong = @intFromFloat(v);
-    const dt = time.localtime(&timestamp);
-    return Time{ .hour = @intCast(dt.*.tm_hour), .minute = @intCast(dt.*.tm_min) };
+    const dt = cTime.gmtime(&timestamp);
+    const hour: i8 = @intCast(dt.*.tm_hour);
+    return Time{ .hour = @intCast(@rem(hour + timezone, 24)), .minute = @intCast(dt.*.tm_min) };
 }
 
 // https://en.wikipedia.org/wiki/Sunrise_equation#Complete_calculation_on_Earth
-pub fn calculate(latitude: f64, longitude: f64, elevation: f64) !SunInfo {
+pub fn calculate(latitude: f64, longitude: f64, elevation: f64, timezone: i8) !SunInfo {
     const perihelion = 102.9372;
     const max_axial_tilt = math.degreesToRadians(23.4397);
     const latitude_rad = math.degreesToRadians(latitude);
@@ -66,5 +68,5 @@ pub fn calculate(latitude: f64, longitude: f64, elevation: f64) !SunInfo {
     const solar_set = reverseJulian(solar_transit + hour_angle / 360);
     log.debug("Sunset = {d:.4}", .{solar_set});
 
-    return SunInfo{ .sunrise = dateFromTimestamp(solar_rise), .sunset = dateFromTimestamp(solar_set) };
+    return SunInfo{ .sunrise = dateFromTimestamp(solar_rise, timezone), .sunset = dateFromTimestamp(solar_set, timezone) };
 }
