@@ -70,7 +70,7 @@ pub fn main() !void {
     const stderr = io.getStdErr().writer();
 
     const parsed = cfg.parseConfigAlloc("config.json", allocator) catch |err| {
-        try stderr.print("Cannot load config: {any}", .{err});
+        try stderr.print("Cannot load config: {any}\n", .{err});
         return;
     };
     defer parsed.deinit();
@@ -81,11 +81,11 @@ pub fn main() !void {
 
     if (args.len == 2 and mem.eql(u8, args[1], "crontab")) {
         updateCrontab(args[0], config, allocator) catch |err| {
-            try stderr.print("Cannot update crontab: {any}", .{err});
+            try stderr.print("Cannot update crontab: {any}\n", .{err});
         };
     } else {
         changeBrightness(config, allocator) catch |err| {
-            try stderr.print("Cannot change brightness: {any}", .{err});
+            try stderr.print("Cannot change brightness: {any}\n", .{err});
         };
     }
 }
