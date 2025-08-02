@@ -7,6 +7,21 @@ const suninfo = @import("suninfo.zig");
 const api = @import("api.zig");
 const cfg = @import("config.zig");
 
+// zig fmt: off
+pub const Config = struct {
+    clock: struct {
+        host: []u8,
+        port: u16,
+    },
+    position: struct {
+        latitude: f64,
+        longitude: f64,
+        elevation: f64,
+        timezone: i8,
+    }
+};
+// zig fmt: on
+
 fn printUsage(stdout: io.AnyWriter) !void {
     const usage =
         \\usage: [command] [args]
@@ -30,7 +45,7 @@ pub fn main() !void {
     const stdout = io.getStdOut().writer();
     const stderr = io.getStdErr().writer();
 
-    const parsed = cfg.parseConfigAlloc("config.json", allocator) catch |err| {
+    const parsed = cfg.parseConfigAlloc(Config, "config.json", allocator) catch |err| {
         try stderr.print("Problem with config loading: {}\n", .{err});
         return;
     };

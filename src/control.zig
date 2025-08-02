@@ -6,7 +6,26 @@ const process = std.process;
 const suninfo = @import("suninfo.zig");
 const api = @import("api.zig");
 const cfg = @import("config.zig");
-const arg = @import("arg.zig");
+
+// zig fmt: off
+pub const Config = struct {
+    clock: struct {
+        host: []u8,
+        port: u16,
+    },
+    position: struct {
+        latitude: f64,
+        longitude: f64,
+        elevation: f64,
+        timezone: i8,
+    },
+    control: struct {
+        min: i32,
+        max: i32,
+        step: i32,
+    }
+};
+// zig fmt: on
 
 const TransitionIterator = struct {
     start: i32,
@@ -26,7 +45,7 @@ const TransitionIterator = struct {
     }
 };
 
-fn updateCrontab(app: []u8, config: cfg.Config, allocator: std.mem.Allocator) !void {
+fn updateCrontab(app: []u8, config: Config, allocator: std.mem.Allocator) !void {
     const max_file_size = 1024;
 
     const file = try std.fs.cwd().openFile("/etc/crontabs/root", .{});
@@ -44,7 +63,7 @@ fn updateCrontab(app: []u8, config: cfg.Config, allocator: std.mem.Allocator) !v
     try stdout.print("{d} {d} * * * {s}", .{ info.sunset.minute, info.sunset.hour, app });
 }
 
-fn changeBrightness(config: cfg.Config, allocator: std.mem.Allocator) !void {
+fn changeBrightness(config: Config, allocator: std.mem.Allocator) !void {
     var gixie = try api.Api.init(config.clock.host, config.clock.port, allocator);
     defer gixie.deinit();
 
@@ -69,7 +88,7 @@ pub fn main() !void {
 
     const stderr = io.getStdErr().writer();
 
-    const parsed = cfg.parseConfigAlloc("config.json", allocator) catch |err| {
+    const parsed = cfg.parseConfigAlloc(Config, "config.json", allocator) catch |err| {
         try stderr.print("Cannot load config: {any}\n", .{err});
         return;
     };
