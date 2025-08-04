@@ -6,7 +6,14 @@ const cTime = @cImport({
     @cInclude("time.h");
 });
 
-const Time = struct { hour: u8, minute: u8 };
+const Time = struct {
+    hour: u8,
+    minute: u8,
+
+    pub fn format(self: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{d:02}:{d:02}", .{ self.hour, self.minute });
+    }
+};
 const SunInfo = struct { sunrise: Time, sunset: Time };
 
 const noon_const = 2451545.0; // 01-01-2000, 12:00:00
