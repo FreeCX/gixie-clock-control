@@ -58,9 +58,9 @@ fn updateCrontab(app: []u8, config: Config, allocator: std.mem.Allocator) !void 
     const stdout = io.getStdOut().writer();
     try stdout.print("{s}\n", .{current_crontab});
     try stdout.print("# {s}\n", .{app});
-    try stdout.print("@daily {s} | crontab -\n", .{app});
+    try stdout.print("@daily {s} crontab | crontab -\n", .{app});
     try stdout.print("{d} {d} * * * {s}\n", .{ info.sunrise.minute, info.sunrise.hour, app });
-    try stdout.print("{d} {d} * * * {s}", .{ info.sunset.minute, info.sunset.hour, app });
+    try stdout.print("{d} {d} * * * {s}\n", .{ info.sunset.minute, info.sunset.hour, app });
 }
 
 fn changeBrightness(config: Config, allocator: std.mem.Allocator) !void {
