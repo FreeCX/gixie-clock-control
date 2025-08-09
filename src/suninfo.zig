@@ -1,41 +1,10 @@
 const std = @import("std");
 const log = std.log;
 const math = std.math;
-const time = std.time;
-const cTime = @cImport({
-    @cInclude("time.h");
-});
-
-const Time = struct {
-    hour: u8,
-    minute: u8,
-
-    pub fn format(self: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{d:02}:{d:02}", .{ self.hour, self.minute });
-    }
-};
-const SunInfo = struct { sunrise: Time, sunset: Time };
+const time = @import("time.zig");
 
 const noon_const = 2451545.0; // 01-01-2000, 12:00:00
-const unix_const = 2440587.5; // 01-01-1970, 00:00:00
-const seconds_in_day = 60.0 * 60.0 * 24.0;
-
-fn nowJulianDate() f64 {
-    const now: f64 = @floatFromInt(time.timestamp());
-    log.debug("Now = {d:.0}", .{now});
-    return now / seconds_in_day + unix_const;
-}
-
-fn reverseJulian(timestamp: f64) f64 {
-    return (timestamp - unix_const) * seconds_in_day;
-}
-
-fn dateFromTimestamp(v: f64, timezone: i8) Time {
-    const timestamp: c_longlong = @intFromFloat(v);
-    const dt = cTime.gmtime(&timestamp);
-    const hour: i8 = @intCast(dt.*.tm_hour);
-    return Time{ .hour = @intCast(@rem(hour + timezone, 24)), .minute = @intCast(dt.*.tm_min) };
-}
+const SunInfo = struct { sunrise: time.Time, sunset: time.Time };
 
 // https://en.wikipedia.org/wiki/Sunrise_equation#Complete_calculation_on_Earth
 pub fn calculate(latitude: f64, longitude: f64, elevation: f64, timezone: i8) !SunInfo {
@@ -43,7 +12,7 @@ pub fn calculate(latitude: f64, longitude: f64, elevation: f64, timezone: i8) !S
     const max_axial_tilt = math.degreesToRadians(23.4397);
     const latitude_rad = math.degreesToRadians(latitude);
 
-    const julian_day: f64 = math.ceil(nowJulianDate() - noon_const + 0.0008);
+    const julian_day: f64 = math.ceil(time.nowJulianDate() - noon_const + 0.0008);
     log.debug("Julian day = {d:.4}", .{julian_day});
 
     const mean_solar_time = julian_day - longitude / 360.0;
@@ -70,10 +39,10 @@ pub fn calculate(latitude: f64, longitude: f64, elevation: f64, timezone: i8) !S
     const hour_angle = math.radiansToDegrees(math.acos(some_cos));
     log.debug("Hour angle = {d:.4}", .{hour_angle});
 
-    const solar_rise = reverseJulian(solar_transit - hour_angle / 360);
+    const solar_rise = time.reverseJulian(solar_transit - hour_angle / 360);
     log.debug("Sunrise = {d:.4}", .{solar_rise});
-    const solar_set = reverseJulian(solar_transit + hour_angle / 360);
+    const solar_set = time.reverseJulian(solar_transit + hour_angle / 360);
     log.debug("Sunset = {d:.4}", .{solar_set});
 
-    return SunInfo{ .sunrise = dateFromTimestamp(solar_rise, timezone), .sunset = dateFromTimestamp(solar_set, timezone) };
+    return SunInfo{ .sunrise = time.fromTimestamp(solar_rise, timezone), .sunset = time.fromTimestamp(solar_set, timezone) };
 }

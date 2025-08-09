@@ -17,7 +17,6 @@ pub fn build(b: *std.Build) void {
                 .strip = true,
             }),
         });
-        arm_exe.linkLibC();
         b.installArtifact(arm_exe);
         return;
     }
@@ -31,7 +30,6 @@ pub fn build(b: *std.Build) void {
             .optimize = b.standardOptimizeOption(.{}),
         }),
     });
-    exe.linkLibC();
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
