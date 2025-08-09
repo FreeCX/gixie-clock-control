@@ -5,14 +5,14 @@ Reimplementation of [gixie-bright-control](https://github.com/FreeCX/gixie-brigh
 
 ## How to use
 - create `config.json`
-```json
+```jsonc
 {
-  # gixie clock websocket server
+  // gixie clock websocket server
   "clock": {
     "host": "127.0.0.1",
     "port": 81
   },
-  # to calculate of sunrise and sunset
+  // to calculate of sunrise and sunset
   "position": {
     "latitude": 59.33258,
     "longitude": 18.06490,
@@ -20,11 +20,11 @@ Reimplementation of [gixie-bright-control](https://github.com/FreeCX/gixie-brigh
     "timezone": 0
   },
   "control": {
-    # nighttime brightness
+    // nighttime brightness
     "min": 10,
-    # daytime brightness
+    // daytime brightness
     "max": 250,
-    # smooth transition step
+    // smooth transition step
     "step": 10
   }
 }
