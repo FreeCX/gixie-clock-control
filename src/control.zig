@@ -80,7 +80,6 @@ fn changeBrightness(config: Config, allocator: std.mem.Allocator) !void {
     }
 }
 
-// TODO: args[0] -> full app path
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -98,8 +97,11 @@ pub fn main() !void {
     const args = try process.argsAlloc(allocator);
     defer process.argsFree(allocator, args);
 
+    const app = try std.fs.cwd().realpathAlloc(allocator, args[0]);
+    defer allocator.free(app);
+
     if (args.len == 2 and mem.eql(u8, args[1], "crontab")) {
-        updateCrontab(args[0], config, allocator) catch |err| {
+        updateCrontab(app, config, allocator) catch |err| {
             try stderr.print("Cannot update crontab: {any}\n", .{err});
         };
     } else {
