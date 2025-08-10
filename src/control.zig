@@ -85,20 +85,27 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
+    // application args
+    const args = try process.argsAlloc(allocator);
+    defer process.argsFree(allocator, args);
+
+    // full path to app
+    const app = try std.fs.cwd().realpathAlloc(allocator, args[0]);
+    defer allocator.free(app);
+
+    // full path to config
+    const parent_path = std.fs.path.dirname(app).?;
+    const config_file = try std.fs.path.join(allocator,&[_][]const u8 { parent_path, "config.json" });
+    defer allocator.free(config_file);
+
     const stderr = io.getStdErr().writer();
 
-    const parsed = cfg.parseConfigAlloc(Config, "config.json", allocator) catch |err| {
+    const parsed = cfg.parseConfigAlloc(Config, config_file, allocator) catch |err| {
         try stderr.print("Cannot load config: {any}\n", .{err});
         return;
     };
     defer parsed.deinit();
     const config = parsed.value;
-
-    const args = try process.argsAlloc(allocator);
-    defer process.argsFree(allocator, args);
-
-    const app = try std.fs.cwd().realpathAlloc(allocator, args[0]);
-    defer allocator.free(app);
 
     if (args.len == 2 and mem.eql(u8, args[1], "crontab")) {
         updateCrontab(app, config, allocator) catch |err| {
