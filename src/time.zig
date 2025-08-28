@@ -2,9 +2,6 @@ const std = @import("std");
 const log = std.log;
 
 const unix_const = 2440587.5; // 01-01-1970, 00:00:00
-const secs_per_min = 60;
-const secs_per_hour = secs_per_min * 60;
-const secs_per_day = secs_per_hour * 24;
 
 pub const Time = struct {
     hour: u8,
@@ -19,18 +16,18 @@ pub const Time = struct {
 pub fn nowJulianDate() f64 {
     const now: f64 = @floatFromInt(std.time.timestamp());
     log.debug("Now = {d:.0}", .{now});
-    return now / secs_per_day + unix_const;
+    return now / std.time.s_per_day + unix_const;
 }
 
 pub fn reverseJulian(timestamp: f64) f64 {
-    return (timestamp - unix_const) * secs_per_day;
+    return (timestamp - unix_const) * std.time.s_per_day;
 }
 
 pub fn fromTimestamp(timestamp: f64, timezone: i8) Time {
     const dt: u64 = @intFromFloat(timestamp);
-    const hour: i8 = @intCast(@divTrunc(@rem(dt, secs_per_day), secs_per_hour));
-    const minute: u8 = @intCast(@divTrunc(@rem(dt, secs_per_hour), secs_per_min));
-    const second: u8 = @intCast(@rem(dt, secs_per_min));
+    const hour: i8 = @intCast(@divTrunc(@rem(dt, std.time.s_per_day), std.time.s_per_hour));
+    const minute: u8 = @intCast(@divTrunc(@rem(dt, std.time.s_per_hour), std.time.s_per_min));
+    const second: u8 = @intCast(@rem(dt, std.time.s_per_min));
 
     return Time{
         .hour = @intCast(@rem(hour + timezone, 24)),
