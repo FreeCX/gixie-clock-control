@@ -1,11 +1,11 @@
 const std = @import("std");
 const log = std.log;
 const mem = std.mem;
-const io = std.io;
 const process = std.process;
 const suninfo = @import("suninfo.zig");
 const api = @import("api.zig");
 const cfg = @import("config.zig");
+const stdout = @import("stdout.zig");
 
 // zig fmt: off
 pub const Config = struct {
@@ -22,7 +22,7 @@ pub const Config = struct {
 };
 // zig fmt: on
 
-fn printUsage(stdout: io.AnyWriter) !void {
+fn printUsage(out: *std.io.Writer) !void {
     const usage =
         \\usage: [command] [args]
         \\
@@ -34,7 +34,8 @@ fn printUsage(stdout: io.AnyWriter) !void {
         \\  suninfo    Get todays sunrise and sunset info
         \\
     ;
-    try stdout.print(usage, .{});
+    try out.print(usage, .{});
+    try out.flush();
 }
 
 pub fn main() !void {
@@ -42,11 +43,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const stdout = io.getStdOut().writer();
-    const stderr = io.getStdErr().writer();
+    // setup stdout and stderr with fixed buffer size
+    const out = stdout.setup(1024);
 
     const parsed = cfg.parseConfigAlloc(Config, "config.json", allocator) catch |err| {
-        try stderr.print("Problem with config loading: {}\n", .{err});
+        try out.stderr.print("Problem with config loading: {any}\n", .{err});
         return;
     };
     defer parsed.deinit();
@@ -56,7 +57,7 @@ pub fn main() !void {
     defer process.argsFree(allocator, args);
 
     if (args.len == 1 or args.len > 3) {
-        try printUsage(stdout.any());
+        try printUsage(out.stdout);
         return;
     }
 
@@ -65,29 +66,40 @@ pub fn main() !void {
     const isSet = mem.eql(u8, args[1], "set");
 
     if (!isSuninfo and !isGet and !isSet) {
-        try printUsage(stdout.any());
+        try printUsage(out.stdout);
         return;
     }
 
     if (isSuninfo) {
         const result = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation, config.position.timezone);
-        try stdout.print("sunrise: {}\n", .{result.sunrise});
-        try stdout.print(" sunset: {}\n", .{result.sunset});
+        try out.stdout.print("sunrise: {f}\n", .{result.sunrise});
+        try out.stdout.print(" sunset: {f}\n", .{result.sunset});
+        try out.stdout.flush();
         return;
     }
 
-    var gixie = try api.Api.init(config.clock.host, config.clock.port, allocator);
-    defer gixie.deinit();
+    const address = try std.net.Address.parseIp4(config.clock.host, config.clock.port);
+    const stream = try std.net.tcpConnectToAddress(address);
+    defer stream.close();
+
+    // we don't support frame payload > 127
+    var buffer: [127]u8 = undefined;
+    var reader_stream = stream.reader(&buffer);
+    var writer_stream = stream.writer(&buffer);
+
+    var gixie = try api.Api.init(config.clock.host, config.clock.port, reader_stream.interface(), &writer_stream.interface);
 
     if (isGet) {
-        const current_brightness = try gixie.get(.Brightness);
-        try stdout.print("brightness: {d}\n", .{current_brightness});
+        const current_brightness = try gixie.get(.Brightness, allocator);
+        try out.stdout.print("brightness: {d}\n", .{current_brightness});
+        try out.stdout.flush();
         return;
     }
 
     if (isSet) {
         const new_value = try std.fmt.parseInt(i32, args[2], 10);
-        try gixie.set(.Brightness, new_value);
-        try stdout.print("brightness -> {d}\n", .{new_value});
+        try gixie.set(.Brightness, new_value, allocator);
+        try out.stdout.print("brightness -> {d}\n", .{new_value});
+        try out.stdout.flush();
     }
 }

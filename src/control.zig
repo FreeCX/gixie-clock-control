@@ -1,11 +1,11 @@
 const std = @import("std");
 const log = std.log;
 const mem = std.mem;
-const io = std.io;
 const process = std.process;
 const suninfo = @import("suninfo.zig");
 const api = @import("api.zig");
 const cfg = @import("config.zig");
+const stdout = @import("stdout.zig");
 
 // zig fmt: off
 pub const Config = struct {
@@ -45,7 +45,7 @@ const TransitionIterator = struct {
     }
 };
 
-fn updateCrontab(app: []u8, config: Config, allocator: std.mem.Allocator) !void {
+fn updateCrontab(app: []u8, config: Config, out: *std.io.Writer, allocator: std.mem.Allocator) !void {
     const max_file_size = 1024;
 
     const file = try std.fs.cwd().openFile("/etc/crontabs/root", .{});
@@ -55,28 +55,36 @@ fn updateCrontab(app: []u8, config: Config, allocator: std.mem.Allocator) !void 
 
     const info = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation, config.position.timezone);
 
-    const stdout = io.getStdOut().writer();
-    try stdout.print("{s}\n", .{current_crontab});
-    try stdout.print("# gixie control app\n", .{});
-    try stdout.print("@daily {s} crontab | crontab -\n", .{app});
-    try stdout.print("{d} {d} * * * {s}\n", .{ info.sunrise.minute, info.sunrise.hour, app });
-    try stdout.print("{d} {d} * * * {s}\n", .{ info.sunset.minute, info.sunset.hour, app });
+    try out.print("{s}\n", .{current_crontab});
+    try out.print("# gixie control app\n", .{});
+    try out.print("@daily {s} crontab | crontab -\n", .{app});
+    try out.print("{d} {d} * * * {s}\n", .{ info.sunrise.minute, info.sunrise.hour, app });
+    try out.print("{d} {d} * * * {s}\n", .{ info.sunset.minute, info.sunset.hour, app });
+    try out.flush();
 }
 
-fn changeBrightness(config: Config, allocator: std.mem.Allocator) !void {
-    var gixie = try api.Api.init(config.clock.host, config.clock.port, allocator);
-    defer gixie.deinit();
+fn changeBrightness(config: Config, out: *std.io.Writer, allocator: std.mem.Allocator) !void {
+    const address = try std.net.Address.parseIp4(config.clock.host, config.clock.port);
+    const stream = try std.net.tcpConnectToAddress(address);
+    defer stream.close();
 
-    const from_value = try gixie.get(.Brightness);
+    // we don't support frame payload > 127
+    var buffer: [127]u8 = undefined;
+    var reader_stream = stream.reader(&buffer);
+    var writer_stream = stream.writer(&buffer);
+
+    var gixie = try api.Api.init(config.clock.host, config.clock.port, reader_stream.interface(), &writer_stream.interface);
+
+    const from_value = try gixie.get(.Brightness, allocator);
     const to_value = if (from_value > config.control.min) config.control.min else config.control.max;
     const sign: i32 = if (from_value > to_value) -1 else 1;
 
-    const stdout = io.getStdOut().writer();
-    try stdout.print("brightness: {d} -> {d}\n", .{ from_value, to_value });
+    try out.print("brightness: {d} -> {d}\n", .{ from_value, to_value });
+    try out.flush();
 
     var iter = TransitionIterator{ .start = from_value, .stop = to_value, .step = config.control.step * sign };
     while (iter.next()) |value| {
-        try gixie.set(.Brightness, value);
+        try gixie.set(.Brightness, value, allocator);
     }
 }
 
@@ -95,25 +103,29 @@ pub fn main() !void {
 
     // full path to config
     const parent_path = std.fs.path.dirname(app).?;
-    const config_file = try std.fs.path.join(allocator,&[_][]const u8 { parent_path, "config.json" });
+    const config_file = try std.fs.path.join(allocator, &[_][]const u8{ parent_path, "config.json" });
     defer allocator.free(config_file);
 
-    const stderr = io.getStdErr().writer();
+    // setup stdout and stderr with fixed buffer size
+    const out = stdout.setup(1024);
 
     const parsed = cfg.parseConfigAlloc(Config, config_file, allocator) catch |err| {
-        try stderr.print("Cannot load config: {any}\n", .{err});
+        try out.stderr.print("Cannot load config: {any}\n", .{err});
+        try out.stderr.flush();
         return;
     };
     defer parsed.deinit();
     const config = parsed.value;
 
     if (args.len == 2 and mem.eql(u8, args[1], "crontab")) {
-        updateCrontab(app, config, allocator) catch |err| {
-            try stderr.print("Cannot update crontab: {any}\n", .{err});
+        updateCrontab(app, config, out.stdout, allocator) catch |err| {
+            try out.stderr.print("Cannot update crontab: {any}\n", .{err});
+            try out.stderr.flush();
         };
     } else {
-        changeBrightness(config, allocator) catch |err| {
-            try stderr.print("Cannot change brightness: {any}\n", .{err});
+        changeBrightness(config, out.stdout, allocator) catch |err| {
+            try out.stderr.print("Cannot change brightness: {any}\n", .{err});
+            try out.stderr.flush();
         };
     }
 }

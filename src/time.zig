@@ -8,7 +8,7 @@ pub const Time = struct {
     minute: u8,
     second: u8,
 
-    pub fn format(self: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), writer: *std.io.Writer) !void {
         try writer.print("{:0>2}:{:0>2}:{:0>2}", .{ self.hour, self.minute, self.second });
     }
 };

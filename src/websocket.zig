@@ -42,41 +42,29 @@ pub const Frame = packed struct {
     mask: bool = false,
 };
 
-const http_upgrade_size = 160;
-const buffer_size = 128;
-
 // low budget websocket
 pub const Websocket = struct {
-    stream: net.Stream,
-    allocator: std.mem.Allocator,
+    reader: *std.io.Reader,
+    writer: *std.io.Writer,
 
     const Self = @This();
 
-    pub fn init(address: net.Address, allocator: std.mem.Allocator) !Self {
-        const api = Self{
-            .stream = try net.tcpConnectToAddress(address),
-            .allocator = allocator,
+    pub fn init(reader: *std.io.Reader, writer: *std.io.Writer) !Self {
+        return Self{
+            .reader = reader,
+            .writer = writer,
         };
-        return api;
     }
 
-    fn allocRead(self: Self, len: usize) ![]u8 {
-        const buffer = try self.allocator.alloc(u8, len);
-        _ = try self.stream.read(buffer);
-        return buffer;
-    }
-
-    pub fn readFrame(self: Self) !Frame {
-        const frame = try self.stream.reader().readStruct(Frame);
-        const frame_bytes: [2]u8 = @bitCast(frame);
-        log.debug("read frame: {any} | {any}", .{ frame_bytes, frame });
+    fn readFrame(self: Self) !Frame {
+        const frame = try self.reader.takeStruct(Frame, .little);
+        log.debug("read frame: {any}", .{frame});
         return frame;
     }
 
-    pub fn sendFrame(self: Self, frame: Frame) !void {
-        const frame_bytes: [2]u8 = @bitCast(frame);
-        log.debug("send frame: {any} | {any}", .{ frame_bytes, frame });
-        _ = try self.stream.write(&frame_bytes);
+    fn sendFrame(self: Self, frame: Frame) !void {
+        log.debug("write frame: {any}", .{frame});
+        _ = try self.writer.writeStruct(frame, .little);
     }
 
     pub fn handshake(self: Self, host: []const u8, port: u16) !void {
@@ -89,19 +77,16 @@ pub const Websocket = struct {
             // we don't care
             "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" ++
             "\r\n";
-        const tmp = try self.allocator.alloc(u8, http_upgrade_size);
-        defer self.allocator.free(tmp);
-        const http_upgrade = try fmt.bufPrint(tmp, format, .{ host, port });
+        var http_upgrade_buffer: [160]u8 = undefined;
+        const http_upgrade = try fmt.bufPrint(&http_upgrade_buffer, format, .{ host, port });
 
         log.debug("send http upgrade:\n{s}", .{http_upgrade});
-        try self.stream.writeAll(http_upgrade);
+        _ = try self.writer.write(http_upgrade);
+        try self.writer.flush();
 
         // http response
-        const buffer = try self.allocator.alloc(u8, buffer_size);
-        defer self.allocator.free(buffer);
-        var reader = self.stream.reader();
         while (true) {
-            const line = try reader.readUntilDelimiter(buffer, '\n');
+            const line = try self.reader.takeDelimiterExclusive('\n');
             log.debug("read {d} bytes: {s}", .{ line.len, line });
             if (mem.eql(u8, line, "\r")) {
                 break;
@@ -112,42 +97,28 @@ pub const Websocket = struct {
         const first_frame = try self.readFrame();
         if (first_frame.opcode == .Ping) {
             try self.sendFrame(Frame{ .opcode = .Pong });
+            try self.writer.flush();
         }
 
         // text: Connected
         const second_frame = try self.readFrame();
         if (second_frame.payload_len > 0) {
-            const payload = try self.allocRead(second_frame.payload_len);
-            defer self.allocator.free(payload);
-            log.debug("payload: {s}", .{payload});
+            const payload = try self.reader.take(second_frame.payload_len);
+            log.debug("read payload: {s}", .{payload});
         }
     }
 
     pub fn writeText(self: Self, payload: []const u8) !void {
         try self.sendFrame(Frame{ .opcode = .Text, .payload_len = @intCast(payload.len) });
-        log.debug("payload: {s}", .{payload});
-        _ = try self.stream.write(payload);
+        log.debug("write payload: {s}", .{payload});
+        _ = try self.writer.write(payload);
+        try self.writer.flush();
     }
 
     pub fn readText(self: Self) ![]u8 {
         const frame = try self.readFrame();
-        const payload = try self.allocRead(frame.payload_len);
-        log.debug("payload: {s}", .{payload});
+        const payload = try self.reader.take(frame.payload_len);
+        log.debug("read payload: {s}", .{payload});
         return payload;
-    }
-
-    pub fn close(self: Self) !void {
-        try self.sendFrame(Frame{ .opcode = .Close });
-
-        const frame = try self.readFrame();
-        if (frame.payload_len > 0) {
-            const payload = try self.allocator.alloc(u8, frame.payload_len);
-            defer self.allocator.free(payload);
-
-            _ = try self.stream.read(payload);
-            log.debug("payload: {any}", .{payload});
-        }
-
-        self.stream.close();
     }
 };
