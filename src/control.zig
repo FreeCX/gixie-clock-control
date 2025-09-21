@@ -7,8 +7,8 @@ const api = @import("api.zig");
 const cfg = @import("config.zig");
 const stdout = @import("stdout.zig");
 
-// zig fmt: off
 pub const Config = struct {
+    // zig fmt: off
     clock: struct {
         host: []u8,
         port: u16,
@@ -23,9 +23,17 @@ pub const Config = struct {
         min: i32,
         max: i32,
         step: i32,
+    },
+    // zig fmt: on
+
+    fn createTransitionIterator(self: Config, current: i32) TransitionIterator {
+        if (current > self.control.min) {
+            return TransitionIterator{ .start = self.control.max, .stop = self.control.min, .step = -self.control.step };
+        } else {
+            return TransitionIterator{ .start = self.control.min, .stop = self.control.max, .step = self.control.step };
+        }
     }
 };
-// zig fmt: on
 
 const TransitionIterator = struct {
     start: i32,
@@ -75,14 +83,12 @@ fn changeBrightness(config: Config, out: *std.io.Writer, allocator: std.mem.Allo
 
     var gixie = try api.Api.init(config.clock.host, config.clock.port, reader_stream.interface(), &writer_stream.interface);
 
-    const from_value = try gixie.get(.Brightness, allocator);
-    const to_value = if (from_value > config.control.min) config.control.min else config.control.max;
-    const sign: i32 = if (from_value > to_value) -1 else 1;
+    const current = try gixie.get(.Brightness, allocator);
+    var iter = config.createTransitionIterator(current);
 
-    try out.print("brightness: {d} -> {d}\n", .{ from_value, to_value });
+    try out.print("brightness: {d} -> {d}\n", .{ current, iter.stop });
     try out.flush();
 
-    var iter = TransitionIterator{ .start = from_value, .stop = to_value, .step = config.control.step * sign };
     while (iter.next()) |value| {
         try gixie.set(.Brightness, value, allocator);
     }
