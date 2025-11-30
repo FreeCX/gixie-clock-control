@@ -86,9 +86,9 @@ pub const Websocket = struct {
 
         // http response
         while (true) {
-            const line = try self.reader.takeDelimiterExclusive('\n');
-            log.debug("read {d} bytes: {s}", .{ line.len, line });
-            if (mem.eql(u8, line, "\r")) {
+            const line = try self.reader.takeDelimiterInclusive('\n');
+            log.debug("read {d} bytes: `{s}\\r\\n`", .{ line.len, mem.trimRight(u8, line, "\r\n") });
+            if (mem.eql(u8, line, "\r\n")) {
                 break;
             }
         }
