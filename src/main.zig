@@ -1,5 +1,5 @@
 const std = @import("std");
-const Io = std.io;
+const Io = std.Io;
 const mem = std.mem;
 const process = std.process;
 
@@ -77,17 +77,24 @@ pub fn main(init: std.process.Init) !void {
         return;
     }
 
-    const isSuninfo = mem.eql(u8, args[1], "suninfo");
-    const isGet = mem.eql(u8, args[1], "get");
-    const isSet = mem.eql(u8, args[1], "set");
+    var command: enum { suninfo, get, set, not_set } = .not_set;
+    if (mem.eql(u8, args[1], "suninfo")) command = .suninfo;
+    if (mem.eql(u8, args[1], "get")) command = .get;
+    if (mem.eql(u8, args[1], "set")) command = .set;
 
-    if (!isSuninfo and !isGet and !isSet) {
+    if (command == .not_set) {
         try printUsage(stdout);
         return;
     }
 
-    if (isSuninfo) {
-        const result = try suninfo.calculate(io, config.position.latitude, config.position.longitude, config.position.elevation, config.position.timezone);
+    if (command == .suninfo) {
+        const result = try suninfo.calculate(
+            io,
+            config.position.latitude,
+            config.position.longitude,
+            config.position.elevation,
+            config.position.timezone,
+        );
         try stdout.print("sunrise: {f}\n", .{result.sunrise});
         try stdout.print(" sunset: {f}\n", .{result.sunset});
         try stdout.flush();
@@ -111,17 +118,18 @@ pub fn main(init: std.process.Init) !void {
         &writer_stream.interface,
     );
 
-    if (isGet) {
-        const current_brightness = try gixie.get(.Brightness, gpa);
-        try stdout.print("brightness: {d}\n", .{current_brightness});
-        try stdout.flush();
-        return;
-    }
-
-    if (isSet) {
-        const new_value = try std.fmt.parseInt(i32, args[2], 10);
-        try gixie.set(.Brightness, new_value, gpa);
-        try stdout.print("brightness -> {d}\n", .{new_value});
-        try stdout.flush();
+    switch (command) {
+        .get => {
+            const current_brightness = try gixie.get(gpa, .Brightness);
+            try stdout.print("brightness: {d}\n", .{current_brightness});
+            try stdout.flush();
+        },
+        .set => {
+            const new_value = try std.fmt.parseInt(i32, args[2], 10);
+            try gixie.set(gpa, .Brightness, new_value);
+            try stdout.print("brightness -> {d}\n", .{new_value});
+            try stdout.flush();
+        },
+        else => {},
     }
 }

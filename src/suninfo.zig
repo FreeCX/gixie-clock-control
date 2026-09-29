@@ -5,7 +5,11 @@ const time = @import("time.zig");
 const log = std.log.scoped(.suninfo);
 
 const noon_const = 2451545.0; // 01-01-2000, 12:00:00
-const SunInfo = struct { sunrise: time.Time, sunset: time.Time };
+
+const SunInfo = struct {
+    sunrise: time.Time,
+    sunset: time.Time,
+};
 
 // https://en.wikipedia.org/wiki/Sunrise_equation#Complete_calculation_on_Earth
 pub fn calculate(io: std.Io, latitude: f64, longitude: f64, elevation: f64, timezone: i8) !SunInfo {
@@ -45,5 +49,8 @@ pub fn calculate(io: std.Io, latitude: f64, longitude: f64, elevation: f64, time
     const solar_set = time.reverseJulian(solar_transit + hour_angle / 360);
     log.debug("Sunset = {d:.4}", .{solar_set});
 
-    return SunInfo{ .sunrise = time.fromTimestamp(solar_rise, timezone), .sunset = time.fromTimestamp(solar_set, timezone) };
+    return SunInfo{
+        .sunrise = time.fromTimestamp(solar_rise, timezone),
+        .sunset = time.fromTimestamp(solar_set, timezone),
+    };
 }

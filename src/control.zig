@@ -123,7 +123,10 @@ pub fn main(init: process.Init) !void {
 
     // full path to config
     const parent_path = std.fs.path.dirname(app).?;
-    const config_file = try std.fs.path.join(gpa, &[_][]const u8{ parent_path, "config.json" });
+    const config_file = try std.fs.path.join(
+        gpa,
+        &[_][]const u8{ parent_path, "config.json" },
+    );
     defer gpa.free(config_file);
 
     // setup stdout and stderr with fixed buffer size
