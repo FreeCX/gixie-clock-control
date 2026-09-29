@@ -1,18 +1,19 @@
 const std = @import("std");
-const log = std.log;
 const math = std.math;
 const time = @import("time.zig");
+
+const log = std.log.scoped(.suninfo);
 
 const noon_const = 2451545.0; // 01-01-2000, 12:00:00
 const SunInfo = struct { sunrise: time.Time, sunset: time.Time };
 
 // https://en.wikipedia.org/wiki/Sunrise_equation#Complete_calculation_on_Earth
-pub fn calculate(latitude: f64, longitude: f64, elevation: f64, timezone: i8) !SunInfo {
+pub fn calculate(io: std.Io, latitude: f64, longitude: f64, elevation: f64, timezone: i8) !SunInfo {
     const perihelion = 102.9372;
     const max_axial_tilt = math.degreesToRadians(23.4397);
     const latitude_rad = math.degreesToRadians(latitude);
 
-    const julian_day: f64 = math.ceil(time.nowJulianDate() - noon_const + 0.0008);
+    const julian_day: f64 = math.ceil(time.nowJulianDate(io) - noon_const + 0.0008);
     log.debug("Julian day = {d:.4}", .{julian_day});
 
     const mean_solar_time = julian_day - longitude / 360.0;

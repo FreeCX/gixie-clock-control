@@ -2,9 +2,10 @@
 
 const std = @import("std");
 const fmt = std.fmt;
-const log = std.log;
 const mem = std.mem;
 const net = std.net;
+
+const log = std.log.scoped(.websocket);
 
 pub const Opcode = enum(u4) {
     Continuation = 0,
@@ -44,12 +45,12 @@ pub const Frame = packed struct {
 
 // low budget websocket
 pub const Websocket = struct {
-    reader: *std.io.Reader,
-    writer: *std.io.Writer,
+    reader: *std.Io.Reader,
+    writer: *std.Io.Writer,
 
     const Self = @This();
 
-    pub fn init(reader: *std.io.Reader, writer: *std.io.Writer) !Self {
+    pub fn init(reader: *std.Io.Reader, writer: *std.Io.Writer) !Self {
         return Self{
             .reader = reader,
             .writer = writer,
@@ -87,7 +88,7 @@ pub const Websocket = struct {
         // http response
         while (true) {
             const line = try self.reader.takeDelimiterInclusive('\n');
-            log.debug("read {d} bytes: `{s}\\r\\n`", .{ line.len, mem.trimRight(u8, line, "\r\n") });
+            log.debug("read {d} bytes: `{s}\\r\\n`", .{ line.len, mem.trimEnd(u8, line, "\r\n") });
             if (mem.eql(u8, line, "\r\n")) {
                 break;
             }
@@ -109,6 +110,10 @@ pub const Websocket = struct {
     }
 
     pub fn writeText(self: Self, payload: []const u8) !void {
+        if (payload.len > 127) {
+            return error.FrameSize;
+        }
+
         try self.sendFrame(Frame{ .opcode = .Text, .payload_len = @intCast(payload.len) });
         log.debug("write payload: {s}", .{payload});
         _ = try self.writer.write(payload);

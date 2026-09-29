@@ -1,13 +1,21 @@
 const std = @import("std");
-const log = std.log;
+const Io = std.io;
 const mem = std.mem;
 const process = std.process;
+
 const suninfo = @import("suninfo.zig");
 const api = @import("api.zig");
 const cfg = @import("config.zig");
-const stdout = @import("stdout.zig");
 
-// zig fmt: off
+const log = std.log.scoped(.app);
+
+// TODO:
+//  - использовать https://github.com/Hejsil/zig-clap
+//  - внедрить функционал `control.zig` сюда
+//  - реализовать работу с cron и systemd
+//  - добавить установку яркости используя TransitionIterator
+//  - обновить систему сборки
+
 pub const Config = struct {
     clock: struct {
         host: []u8,
@@ -18,11 +26,10 @@ pub const Config = struct {
         longitude: f64,
         elevation: f64,
         timezone: i8,
-    }
+    },
 };
-// zig fmt: on
 
-fn printUsage(out: *std.io.Writer) !void {
+fn printUsage(out: *Io.Writer) !void {
     const usage =
         \\usage: [command] [args]
         \\
@@ -38,26 +45,35 @@ fn printUsage(out: *std.io.Writer) !void {
     try out.flush();
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    const io = init.io;
 
     // setup stdout and stderr with fixed buffer size
-    const out = stdout.setup(1024);
+    var stdout_buffer: [1024]u8 = undefined;
+    var stderr_buffer: [1024]u8 = undefined;
+    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
+    var stderr_writer = Io.File.stderr().writer(io, &stderr_buffer);
+    const stdout = &stdout_writer.interface;
+    const stderr = &stderr_writer.interface;
 
-    const parsed = cfg.parseConfigAlloc(Config, "config.json", allocator) catch |err| {
-        try out.stderr.print("Problem with config loading: {any}\n", .{err});
+    const parsed = cfg.parseConfigAlloc(
+        Config,
+        io,
+        gpa,
+        "config.json",
+    ) catch |err| {
+        try stderr.print("Problem with config loading: {any}\n", .{err});
         return;
     };
     defer parsed.deinit();
     const config = parsed.value;
 
-    const args = try process.argsAlloc(allocator);
-    defer process.argsFree(allocator, args);
+    const args = try init.minimal.args.toSlice(gpa);
+    defer gpa.free(args);
 
     if (args.len == 1 or args.len > 3) {
-        try printUsage(out.stdout);
+        try printUsage(stdout);
         return;
     }
 
@@ -66,40 +82,46 @@ pub fn main() !void {
     const isSet = mem.eql(u8, args[1], "set");
 
     if (!isSuninfo and !isGet and !isSet) {
-        try printUsage(out.stdout);
+        try printUsage(stdout);
         return;
     }
 
     if (isSuninfo) {
-        const result = try suninfo.calculate(config.position.latitude, config.position.longitude, config.position.elevation, config.position.timezone);
-        try out.stdout.print("sunrise: {f}\n", .{result.sunrise});
-        try out.stdout.print(" sunset: {f}\n", .{result.sunset});
-        try out.stdout.flush();
+        const result = try suninfo.calculate(io, config.position.latitude, config.position.longitude, config.position.elevation, config.position.timezone);
+        try stdout.print("sunrise: {f}\n", .{result.sunrise});
+        try stdout.print(" sunset: {f}\n", .{result.sunset});
+        try stdout.flush();
         return;
     }
 
-    const address = try std.net.Address.parseIp4(config.clock.host, config.clock.port);
-    const stream = try std.net.tcpConnectToAddress(address);
-    defer stream.close();
+    const address = try Io.net.IpAddress.parseIp4(config.clock.host, config.clock.port);
+    const stream = try address.connect(io, .{ .mode = .stream });
+    defer stream.close(io);
 
     // we don't support frame payload > 127
-    var buffer: [127]u8 = undefined;
-    var reader_stream = stream.reader(&buffer);
-    var writer_stream = stream.writer(&buffer);
+    var read_buffer: [127]u8 = undefined;
+    var write_buffer: [127]u8 = undefined;
+    var reader_stream = stream.reader(io, &read_buffer);
+    var writer_stream = stream.writer(io, &write_buffer);
 
-    var gixie = try api.Api.init(config.clock.host, config.clock.port, reader_stream.interface(), &writer_stream.interface);
+    var gixie = try api.Api.init(
+        config.clock.host,
+        config.clock.port,
+        &reader_stream.interface,
+        &writer_stream.interface,
+    );
 
     if (isGet) {
-        const current_brightness = try gixie.get(.Brightness, allocator);
-        try out.stdout.print("brightness: {d}\n", .{current_brightness});
-        try out.stdout.flush();
+        const current_brightness = try gixie.get(.Brightness, gpa);
+        try stdout.print("brightness: {d}\n", .{current_brightness});
+        try stdout.flush();
         return;
     }
 
     if (isSet) {
         const new_value = try std.fmt.parseInt(i32, args[2], 10);
-        try gixie.set(.Brightness, new_value, allocator);
-        try out.stdout.print("brightness -> {d}\n", .{new_value});
-        try out.stdout.flush();
+        try gixie.set(.Brightness, new_value, gpa);
+        try stdout.print("brightness -> {d}\n", .{new_value});
+        try stdout.flush();
     }
 }

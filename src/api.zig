@@ -1,8 +1,9 @@
 const std = @import("std");
-const log = std.log;
 const net = std.net;
 const json = std.json;
 const Websocket = @import("websocket.zig").Websocket;
+
+const log = std.log.scoped(.api);
 
 const Type = enum(u2) {
     Get = 0,
@@ -33,6 +34,7 @@ const Request = struct {
 
 const Response = struct {
     // TODO: это обычный код из HTTP
+    // u10 должно хватить
     resCode: u16,
     cmdType: Type,
     cmdNum: Command,
@@ -60,9 +62,12 @@ pub const Api = struct {
 
         log.debug("request: {any}", .{request_data});
 
-        var json_buffer: [128]u8 = undefined;
-        var json_writer = std.io.Writer.fixed(&json_buffer);
-        const fmt = json.fmt(request_data, .{ .emit_null_optional_fields = false });
+        var json_buffer: [127]u8 = undefined;
+        var json_writer = std.Io.Writer.fixed(&json_buffer);
+        const fmt = json.fmt(
+            request_data,
+            .{ .emit_null_optional_fields = false },
+        );
         try fmt.format(&json_writer);
         const request_bytes = json_buffer[0..json_writer.end];
 
@@ -92,7 +97,7 @@ pub const Api = struct {
         const response_data = try self.response(allocator);
         defer response_data.deinit();
 
-        return response_data.value.data.?;
+        return response_data.value.data orelse return error.MissingData;
     }
 
     // TODO: нормальный API

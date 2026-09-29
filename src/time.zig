@@ -1,5 +1,6 @@
 const std = @import("std");
-const log = std.log;
+
+const log = std.log.scoped(.time);
 
 const unix_const = 2440587.5; // 01-01-1970, 00:00:00
 
@@ -8,15 +9,15 @@ pub const Time = struct {
     minute: u8,
     second: u8,
 
-    pub fn format(self: @This(), writer: *std.io.Writer) !void {
+    pub fn format(self: @This(), writer: *std.Io.Writer) !void {
         try writer.print("{:0>2}:{:0>2}:{:0>2}", .{ self.hour, self.minute, self.second });
     }
 };
 
-pub fn nowJulianDate() f64 {
-    const now: f64 = @floatFromInt(std.time.timestamp());
-    log.debug("Now = {d:.0}", .{now});
-    return now / std.time.s_per_day + unix_const;
+pub fn nowJulianDate(io: std.Io) f64 {
+    const now = std.Io.Timestamp.now(io, .real).toSeconds();
+    log.debug("Timestamp = {d:.0}", .{now});
+    return @as(f64, @floatFromInt(now)) / std.time.s_per_day + unix_const;
 }
 
 pub fn reverseJulian(timestamp: f64) f64 {

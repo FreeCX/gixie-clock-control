@@ -12,7 +12,7 @@ Reimplementation of [gixie-bright-control](https://github.com/FreeCX/gixie-brigh
     "host": "127.0.0.1",
     "port": 81
   },
-  // to calculate of sunrise and sunset
+  // for sunrise and sunset calculations
   "position": {
     "latitude": 59.33258,
     "longitude": 18.06490,
@@ -41,9 +41,9 @@ $ zig build run -- get
 $ zig build run -- set 250
 ```
 
-## Build for ARM
+## Build autonomous app
 ```bash
-$ zig build -Darm=true -Doptimize=ReleaseSmall
+$ zig build -Darm=true -Dtype=cron -Doptimize=ReleaseSmall
 # optional
 $ upx -9 zig-out/bin/control
 ```

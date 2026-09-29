@@ -8,10 +8,10 @@ pub fn build(b: *std.Build) void {
             .name = "control",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("src/control.zig"),
-                .target = b.resolveTargetQuery(std.Target.Query {
+                .target = b.resolveTargetQuery(std.Target.Query{
                     .cpu_arch = .arm,
                     .os_tag = .linux,
-                    .abi = .musleabihf
+                    .abi = .musleabihf,
                 }),
                 .optimize = b.standardOptimizeOption(.{}),
                 .strip = true,
